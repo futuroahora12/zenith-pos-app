@@ -1,0 +1,11 @@
+{
+"appId": "com.zenithpos.bodega",
+"appName": "Zenith POS",
+"webDir": "www",
+"server": {
+"androidScheme": "https"
+},
+"android": {
+"allowMixedContent": true
+}
+}
