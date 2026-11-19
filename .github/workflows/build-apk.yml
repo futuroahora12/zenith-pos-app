@@ -29,6 +29,16 @@ jobs:
           npm install
           npx cap add android
 
+      - name: Aplicar logo oficial de Zenith POS con fondo blanco
+        run: |
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          curl -sL "https://i.postimg.cc/ZnV7nVv2/1-20261115-050455-0000.png" -o /tmp/zenith_raw.png
+          convert /tmp/zenith_raw.png -background "#FFFFFF" -alpha remove -alpha off -resize 512x512 -gravity center -extent 512x512 /tmp/zenith_logo.png
+          for dir in android/app/src/main/res/mipmap-*; do
+            [ -f "$dir/ic_launcher.png" ] && cp /tmp/zenith_logo.png "$dir/ic_launcher.png"
+            [ -f "$dir/ic_launcher_round.png" ] && cp /tmp/zenith_logo.png "$dir/ic_launcher_round.png"
+          done
+
       - name: Agregar permisos de Cámara, Bluetooth y RawBT
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
