@@ -29,22 +29,35 @@ jobs:
           npm install
           npx cap add android
 
-      - name: Aplicar logo oficial de NEON POS con fondo blanco
+      - name: Aplicar logo oficial de NEON POS
         run: |
           sudo apt-get update && sudo apt-get install -y imagemagick
-          curl -sL "https://i.postimg.cc/ZnV7nVv2/1-20261115-050455-0000.png" -o /tmp/zenith_raw.png
-          convert /tmp/zenith_raw.png -background "#FFFFFF" -alpha remove -alpha off -resize 512x512 -gravity center -extent 512x512 /tmp/zenith_logo.png
+
+          curl -fLsS "https://i.postimg.cc/ZYrzGVzQ/Diseno-sin-titulo-20261123-032818-0000.png" -o /tmp/neon_raw.png
+
+          convert /tmp/neon_raw.png \
+            -background "#FFFFFF" \
+            -alpha remove -alpha off \
+            -resize 512x512 \
+            -gravity center \
+            -extent 512x512 \
+            /tmp/neon_logo.png
+
           for dir in android/app/src/main/res/mipmap-*; do
-            [ -f "$dir/ic_launcher.png" ] && cp /tmp/zenith_logo.png "$dir/ic_launcher.png"
-            [ -f "$dir/ic_launcher_round.png" ] && cp /tmp/zenith_logo.png "$dir/ic_launcher_round.png"
-            [ -f "$dir/ic_launcher_foreground.png" ] && cp /tmp/zenith_logo.png "$dir/ic_launcher_foreground.png"
+            [ -f "$dir/ic_launcher.png" ] && cp /tmp/neon_logo.png "$dir/ic_launcher.png"
+            [ -f "$dir/ic_launcher_round.png" ] && cp /tmp/neon_logo.png "$dir/ic_launcher_round.png"
+            [ -f "$dir/ic_launcher_foreground.png" ] && cp /tmp/neon_logo.png "$dir/ic_launcher_foreground.png"
           done
-          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
 
       - name: Agregar permisos de Cámara, Bluetooth y RawBT
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          sed -i 's|<application|<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />\n    <queries>\n        <package android:name="ru.a402d.rawbtprinter" />\n    </queries>\n    <application|' $MANIFEST
+
+          sed -i 's|<application|<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />\n    <queries>\n        <package android:name="ru.a402d.rawbtprinter" />\n    </queries>\n    <application|' "$MANIFEST"
+
           npx cap sync android
 
       - name: Compilar archivo APK
@@ -56,5 +69,5 @@ jobs:
       - name: Subir APK listo para descargar
         uses: actions/upload-artifact@v4
         with:
-          name: NEON POS-v1.0
+          name: NEON-POS-v1.0
           path: android/app/build/outputs/apk/debug/app-debug.apk
