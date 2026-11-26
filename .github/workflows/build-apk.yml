@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -17,61 +20,158 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
 
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: gradle
 
-      - name: Instalar Capacitor y preparar Android
+      - name: Instalar dependencias y preparar Android
         run: |
           npm install
+          npm run build --if-present
 
-          if [ ! -d android ]; then
+          # Capacitor necesita que webDir exista y contenga index.html.
+          if [ ! -f "www/index.html" ]; then
+            if [ -f "index.html" ]; then
+              mkdir -p www
+              cp index.html www/index.html
+            else
+              echo "::error::No se encontró www/index.html ni index.html en la raíz del repositorio."
+              exit 1
+            fi
+          fi
+
+          # Crear el proyecto Android solo si todavía no existe.
+          if [ ! -d "android" ]; then
             npx cap add android
           fi
 
-      - name: Aplicar logo oficial NEON POS
+      - name: Descargar y aplicar el logo oficial de NEON POS
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-          test -f assets/neonpos-logo-oficial.png
+          LOGO_URL="https://i.postimg.cc/tCTtn9rm/Diseno-sin-titulo-20261126-190233-0000.png"
 
-          convert assets/neonpos-logo-oficial.png \
-            -background "#FFFFFF" \
-            -alpha remove -alpha off \
-            -resize 512x512 \
-            -gravity center \
-            -extent 512x512 \
-            /tmp/neonpos-logo.png
+          curl --fail --location --silent --show-error \
+            --retry 3 --retry-all-errors \
+            "$LOGO_URL" \
+            --output /tmp/neonpos-original.png
 
-          for dir in android/app/src/main/res/mipmap-*; do
-            [ -f "$dir/ic_launcher.png" ] && cp /tmp/neonpos-logo.png "$dir/ic_launcher.png"
-            [ -f "$dir/ic_launcher_round.png" ] && cp /tmp/neonpos-logo.png "$dir/ic_launcher_round.png"
-            [ -f "$dir/ic_launcher_foreground.png" ] && cp /tmp/neonpos-logo.png "$dir/ic_launcher_foreground.png"
+          # Confirmar que la descarga sea un PNG válido.
+          identify /tmp/neonpos-original.png
+
+          # Crear los iconos en las densidades estándar de Android.
+          # Se conserva el logo oficial y se coloca sobre fondo blanco.
+          declare -A SIZES=(
+            [mipmap-mdpi]=48
+            [mipmap-hdpi]=72
+            [mipmap-xhdpi]=96
+            [mipmap-xxhdpi]=144
+            [mipmap-xxxhdpi]=192
+          )
+
+          for density in "${!SIZES[@]}"; do
+            size="${SIZES[$density]}"
+            mkdir -p "android/app/src/main/res/$density"
+
+            convert /tmp/neonpos-original.png \
+              -background "#FFFFFF" \
+              -alpha remove -alpha off \
+              -resize "${size}x${size}" \
+              -gravity center \
+              -extent "${size}x${size}" \
+              "android/app/src/main/res/$density/ic_launcher.png"
+
+            cp "android/app/src/main/res/$density/ic_launcher.png" \
+              "android/app/src/main/res/$density/ic_launcher_round.png"
           done
 
+          # Desactivar los XML adaptativos predeterminados para que Android
+          # utilice los iconos oficiales generados por densidad.
           rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
           rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
 
-      - name: Agregar permisos de Cámara, Bluetooth y RawBT
+          echo "Logo oficial de NEON POS aplicado."
+
+      - name: Agregar permisos de Cámara, Bluetooth y acceso a RawBT
         run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          python3 <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
 
-          sed -i 's|<application|<uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />\n    <queries>\n        <package android:name="ru.a402d.rawbtprinter" />\n    </queries>\n    <application|' "$MANIFEST"
+          manifest_path = Path("android/app/src/main/AndroidManifest.xml")
+          if not manifest_path.exists():
+              raise SystemExit("No se encontró AndroidManifest.xml")
 
+          ANDROID_NS = "http://schemas.android.com/apk/res/android"
+          ET.register_namespace("android", ANDROID_NS)
+          android_name = f"{{{ANDROID_NS}}}name"
+          android_max_sdk = f"{{{ANDROID_NS}}}maxSdkVersion"
+
+          tree = ET.parse(manifest_path)
+          root = tree.getroot()
+
+          required_permissions = [
+              ("android.permission.CAMERA", None),
+              ("android.permission.BLUETOOTH", "30"),
+              ("android.permission.BLUETOOTH_ADMIN", "30"),
+              ("android.permission.BLUETOOTH_CONNECT", None),
+              ("android.permission.BLUETOOTH_SCAN", None),
+          ]
+
+          existing_permissions = {
+              element.get(android_name)
+              for element in root.findall("uses-permission")
+          }
+
+          for permission, max_sdk in required_permissions:
+              if permission not in existing_permissions:
+                  element = ET.Element("uses-permission", {android_name: permission})
+                  if max_sdk:
+                      element.set(android_max_sdk, max_sdk)
+                  root.insert(0, element)
+
+          queries = root.find("queries")
+          if queries is None:
+              queries = ET.Element("queries")
+              application = root.find("application")
+              if application is not None:
+                  root.insert(list(root).index(application), queries)
+              else:
+                  root.append(queries)
+
+          rawbt_package = "ru.a402d.rawbtprinter"
+          existing_packages = {
+              package.get(android_name)
+              for package in queries.findall("package")
+          }
+
+          if rawbt_package not in existing_packages:
+              ET.SubElement(queries, "package", {android_name: rawbt_package})
+
+          tree.write(manifest_path, encoding="utf-8", xml_declaration=True)
+          print("Permisos y consulta de RawBT configurados.")
+          PY
+
+      - name: Sincronizar Capacitor
+        run: |
           npx cap sync android
 
       - name: Compilar archivo APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew --no-daemon assembleDebug
 
       - name: Subir APK listo para descargar
         uses: actions/upload-artifact@v4
         with:
           name: NEON-POS-v1.0
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
