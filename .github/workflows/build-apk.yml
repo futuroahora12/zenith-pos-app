@@ -22,11 +22,10 @@ jobs:
           node-version: '20'
 
       - name: Configurar Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: gradle
 
       - name: Instalar dependencias y preparar Android
         run: |
@@ -111,16 +110,17 @@ jobs:
           ET.register_namespace("android", ANDROID_NS)
           android_name = f"{{{ANDROID_NS}}}name"
           android_max_sdk = f"{{{ANDROID_NS}}}maxSdkVersion"
+          android_uses_perm_flags = f"{{{ANDROID_NS}}}usesPermissionFlags"
 
           tree = ET.parse(manifest_path)
           root = tree.getroot()
 
           required_permissions = [
-              ("android.permission.CAMERA", None),
-              ("android.permission.BLUETOOTH", "30"),
-              ("android.permission.BLUETOOTH_ADMIN", "30"),
-              ("android.permission.BLUETOOTH_CONNECT", None),
-              ("android.permission.BLUETOOTH_SCAN", None),
+              ("android.permission.CAMERA", None, None),
+              ("android.permission.BLUETOOTH", "30", None),
+              ("android.permission.BLUETOOTH_ADMIN", "30", None),
+              ("android.permission.BLUETOOTH_CONNECT", None, None),
+              ("android.permission.BLUETOOTH_SCAN", None, "neverForLocation"),
           ]
 
           existing_permissions = {
@@ -128,11 +128,14 @@ jobs:
               for element in root.findall("uses-permission")
           }
 
-          for permission, max_sdk in required_permissions:
+          for permission, max_sdk, perm_flags in required_permissions:
               if permission not in existing_permissions:
-                  element = ET.Element("uses-permission", {android_name: permission})
+                  attrs = {android_name: permission}
                   if max_sdk:
-                      element.set(android_max_sdk, max_sdk)
+                      attrs[android_max_sdk] = max_sdk
+                  if perm_flags:
+                      attrs[android_uses_perm_flags] = perm_flags
+                  element = ET.Element("uses-permission", attrs)
                   root.insert(0, element)
 
           queries = root.find("queries")
