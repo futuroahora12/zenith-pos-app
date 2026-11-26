@@ -1,15 +1,16 @@
+
 {
-"name": "zenith-pos-bodega",
-"version": "1.0.0",
-"description": "Zenith POS - Bodega y Punto de Venta",
-"scripts": {
-"build": "echo 'Web listo'"
-},
-"dependencies": {
-"@capacitor/android": "^6.0.0",
-"@capacitor/core": "^6.0.0"
-},
-"devDependencies": {
-"@capacitor/cli": "^6.0.0"
-}
+  "name": "neon-pos",
+  "version": "1.0.0",
+  "description": "NEON POS - Sistema de gestión comercial y punto de venta",
+  "scripts": {
+    "build": "echo 'Web listo'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
 }
