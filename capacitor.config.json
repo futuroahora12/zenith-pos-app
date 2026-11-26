@@ -1,11 +1,12 @@
+
 {
-"appId": "com.zenithpos.bodega",
-"appName": "Zenith POS",
-"webDir": "www",
-"server": {
-"androidScheme": "https"
-},
-"android": {
-"allowMixedContent": true
-}
+  "appId": "com.somosneonpos.neonpos",
+  "appName": "NEON POS",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
 }
